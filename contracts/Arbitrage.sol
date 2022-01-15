@@ -78,7 +78,6 @@ contract Arbitrage is FlashLoanReceiverBase {
         bytes calldata params
     ) external returns (bool) {
         require(msg.sender == address(LENDING_POOL), "Not a lending pool.");
-        require(initiator == owner, "Owner only.");
 
         FlashData memory decoded = abi.decode(params, (FlashData));
         // ============ Buy ============
@@ -109,23 +108,27 @@ contract Arbitrage is FlashLoanReceiverBase {
         uint256 amountOwed = amounts[0] + premiums[0];
         IERC20(assets[0]).approve(address(LENDING_POOL), amountOwed);
 
-        uint256 profit = IERC20(assets[0]).balanceOf(address(this)) - amountOwed;
-        require(profit > 0, "Not profit was made");
+        // Calculate profit
+        uint256 balance = IERC20(assets[0]).balanceOf(address(this));
+        require(amountOwed <= balance, "No profit was made"); // Check for arithmic underflow
 
         // Pay the profit to the owner
-        IERC20(assets[0]).transfer(owner, profit);
+        IERC20(assets[0]).transfer(owner, balance - amountOwed);
 
         return true;
     }
 
     function swapOnUniswapV3(ISwapRouter _router, address _tokenIn, address _tokenOut, uint24 _poolFee) private returns (uint256) {
+        uint256 balance = IERC20(_tokenIn).balanceOf(address(this));
+        TransferHelper.safeApprove(_tokenIn, address(_router), balance);
+
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
             tokenIn: _tokenIn,
             tokenOut: _tokenOut,
             fee: _poolFee,
             recipient: address(this),
             deadline: block.timestamp,
-            amountIn: IERC20(_tokenIn).balanceOf(address(this)),
+            amountIn: balance,
             amountOutMinimum: 0,
             sqrtPriceLimitX96: 0
         });
@@ -138,12 +141,9 @@ contract Arbitrage is FlashLoanReceiverBase {
         path[0] = _tokenIn;
         path[1] = _tokenOut;
 
-        _router.swapExactTokensForTokens(
-            IERC20(_tokenIn).balanceOf(address(this)),
-            0,
-            path,
-            address(this),
-            block.timestamp
-        );
+        uint256 balance = IERC20(_tokenIn).balanceOf(address(this));
+        TransferHelper.safeApprove(_tokenIn, address(_router), balance);
+
+        _router.swapExactTokensForTokens(balance, 0, path, address(this), block.timestamp);
     }
 }
