@@ -70,6 +70,37 @@ contract Arbitrage is FlashLoanReceiverBase {
     }
 
     // ============ Callbacks ============
+     // Make sure to send some of the _in token to the contract first.
+    // function testV3(address _in, address _out) external {
+    //     uint256 balance = IERC20(_in).balanceOf(address(this));
+    //     TransferHelper.safeApprove(_in, address(uniswapV3Router), balance);
+
+    //     ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
+    //         tokenIn: _in,
+    //         tokenOut: _out,
+    //         fee: 3000,
+    //         recipient: msg.sender,
+    //         deadline: block.timestamp,
+    //         amountIn: balance,
+    //         amountOutMinimum: 0,
+    //         sqrtPriceLimitX96: 0
+    //     });
+        
+    //     uniswapV3Router.exactInputSingle(params);
+    // }
+
+     // Make sure to send some of the _in token to the contract first.
+    // function testV2(address _in, address _out) external {
+    //     address[] memory path = new address[](2);
+    //     path[0] = _in;
+    //     path[1] = _out;
+
+    //     uint256 balance = IERC20(_in).balanceOf(address(this));
+    //     TransferHelper.safeApprove(_in, address(quickswapRouter), balance);
+
+    //     quickswapRouter.swapExactTokensForTokens(balance, 0, path, msg.sender, block.timestamp);
+    // }
+
     function executeOperation(
         address[] calldata assets,
         uint256[] calldata amounts,
@@ -106,7 +137,7 @@ contract Arbitrage is FlashLoanReceiverBase {
 
         // Approve the LendingPool contract allowance to *pull* the owed amount
         uint256 amountOwed = amounts[0] + premiums[0];
-        IERC20(assets[0]).approve(address(LENDING_POOL), amountOwed);
+        TransferHelper.safeApprove(assets[0], address(LENDING_POOL), amountOwed);
 
         // Calculate profit
         uint256 balance = IERC20(assets[0]).balanceOf(address(this));
