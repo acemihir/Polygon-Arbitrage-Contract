@@ -14,8 +14,6 @@ import "./libraries/TransferHelper.sol";
 import "./interfaces/IUniswapV2Router02.sol";
 
 contract Arbitrage is FlashLoanReceiverBase {
-    address public immutable owner;
-
     ISwapRouter public immutable uniswapV3Router;
     IUniswapV2Router02 public immutable quickswapRouter;
 
@@ -31,6 +29,7 @@ contract Arbitrage is FlashLoanReceiverBase {
     struct FlashData {
         SwapData buy;
         SwapData sell;
+        address receiver;
     }
 
     constructor(
@@ -38,17 +37,11 @@ contract Arbitrage is FlashLoanReceiverBase {
         address _uniswapV3Router,
         address _quickswapRouter
     ) FlashLoanReceiverBase(ILendingPoolAddressesProvider(_flashAddrProvider)) {
-        owner = msg.sender;
         uniswapV3Router = ISwapRouter(_uniswapV3Router);
         quickswapRouter = IUniswapV2Router02(_quickswapRouter);
     }
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Owner only");
-        _;
-    }
-
-    function execute(FlashData memory _data, uint256 _amount) external onlyOwner {
+    function execute(FlashData memory _data, uint256 _amount) external {
         address[] memory assets = new address[](1);
         assets[0] = address(_data.buy.token);
 
@@ -139,12 +132,13 @@ contract Arbitrage is FlashLoanReceiverBase {
         uint256 amountOwed = amounts[0] + premiums[0];
         TransferHelper.safeApprove(assets[0], address(LENDING_POOL), amountOwed);
 
+        // ============ Profit Payout ============
         // Calculate profit
         uint256 balance = IERC20(assets[0]).balanceOf(address(this));
         require(amountOwed <= balance, "No profit was made"); // Check for arithmic underflow
 
-        // Pay the profit to the owner
-        IERC20(assets[0]).transfer(owner, balance - amountOwed);
+        // Pay the profit to the receiver
+        IERC20(assets[0]).transfer(decoded.receiver, balance - amountOwed);
 
         return true;
     }
