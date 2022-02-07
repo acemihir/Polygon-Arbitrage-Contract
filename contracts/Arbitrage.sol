@@ -117,7 +117,7 @@ contract Arbitrage is FlashLoanReceiverBase {
 
         // Approve the LendingPool contract allowance to *pull* the owed amount
         uint256 amountOwed = amounts[0] + premiums[0];
-        TransferHelper.safeApprove(assets[0], address(LENDING_POOL), amountOwed);
+        IERC20(assets[0]).approve(address(LENDING_POOL), amountOwed);
 
         return true;
     }
@@ -145,7 +145,7 @@ contract Arbitrage is FlashLoanReceiverBase {
         path[0] = _tokenIn;
         path[1] = _tokenOut;
 
-        TransferHelper.safeApprove(_tokenIn, address(_router), _amountIn);
+        require(IERC20(_tokenIn).approve(address(_router), _amountIn), "V2: Approve failed.");
         return _router.swapExactTokensForTokens(_amountIn, 0, path, address(this), block.timestamp)[0];
     }
     
