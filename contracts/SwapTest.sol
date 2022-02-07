@@ -14,7 +14,7 @@ contract SwapTest {
     ISwapRouter public uniswapV3Router;
     IUniswapV2Router02 public quickswapRouter;
 
-    constructor() payable {}
+    constructor() {}
 
     function testV3(address _router, address _in, address _out, uint256 _amount) external {
         TransferHelper.safeApprove(_in, address(uniswapV3Router), _amount);
