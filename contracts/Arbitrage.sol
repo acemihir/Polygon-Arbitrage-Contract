@@ -42,7 +42,7 @@ contract Arbitrage is FlashLoanReceiverBase {
     }
 
     modifier minterOnly {
-        require(msg.sender == minter, "Minter only");
+        require(msg.sender == minter, "CN: Minter only");
         _;
     }
 
@@ -87,7 +87,7 @@ contract Arbitrage is FlashLoanReceiverBase {
         address initiator,
         bytes calldata params
     ) external returns (bool) {
-        require(msg.sender == address(LENDING_POOL), "Not a lending pool.");
+        require(msg.sender == address(LENDING_POOL), "CN: Malicious FL callback");
 
         FlashData memory decoded = abi.decode(params, (FlashData));
         uint256 sellAmount;
