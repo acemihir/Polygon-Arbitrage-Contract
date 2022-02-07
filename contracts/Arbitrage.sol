@@ -18,15 +18,14 @@ contract Arbitrage is FlashLoanReceiverBase {
     ISwapRouter public immutable uniswapV3Router;
     IUniswapV2Router02 public immutable quickswapRouter;
 
+    // Can buy at the following:
+    // 0 = UniswapV3
+    // 1 = Quickswap
     struct SwapData {
         uint8 index;
         address token;
         uint24 fee;
     }
-
-    // Can buy at the following:
-    // 0 = UniswapV3
-    // 1 = Quickswap
     struct FlashData {
         SwapData buy;
         SwapData sell;
@@ -68,8 +67,78 @@ contract Arbitrage is FlashLoanReceiverBase {
         IERC20(_token).transfer(_receiver, IERC20(_token).balanceOf(address(this)));
     }
 
-    // ============ Callbacks ============
-     // Make sure to send some of the _in token to the contract first.
+    // ============ Callback ============
+    function executeOperation(
+        address[] calldata assets,
+        uint256[] calldata amounts,
+        uint256[] calldata premiums,
+        address initiator,
+        bytes calldata params
+    ) external returns (bool) {
+        require(msg.sender == address(LENDING_POOL), "Not a lending pool.");
+
+        FlashData memory decoded = abi.decode(params, (FlashData));
+        uint256 sellAmount;
+        // ============ Buy ============
+        if (decoded.buy.index == 0) {
+            // Buy at uniswapv3
+            sellAmount = swapOnUniswapV3(uniswapV3Router, decoded.buy.token, decoded.sell.token, decoded.buy.fee, amounts[0]);
+        } else if (decoded.buy.index == 1) {
+            // Buy at quickswap
+            sellAmount = swapOnUniswapV2(quickswapRouter, decoded.buy.token, decoded.sell.token, amounts[0]);
+        }
+
+        // ============ Sell ============
+        if (decoded.sell.index == 0) {
+            // Sell at uniswapv3, all sell tokens
+            swapOnUniswapV3(uniswapV3Router, decoded.sell.token, decoded.buy.token, decoded.sell.fee, sellAmount);
+        } else if (decoded.sell.index == 1) {
+            // Sell at quickswap, all sell tokens
+            swapOnUniswapV2(quickswapRouter, decoded.sell.token, decoded.buy.token, sellAmount);
+        }
+
+        // ============ Payback ============
+        // At the end of your logic above, this contract owes
+        // the flashloaned amounts + premiums.
+        // Therefore ensure your contract has enough to repay
+        // these amounts.
+
+        // Approve the LendingPool contract allowance to *pull* the owed amount
+        uint256 amountOwed = amounts[0] + premiums[0];
+        TransferHelper.safeApprove(assets[0], address(LENDING_POOL), amountOwed);
+
+        return true;
+    }
+
+    // ============ Swaps ============
+    function swapOnUniswapV3(ISwapRouter _router, address _tokenIn, address _tokenOut, uint24 _poolFee, uint256 _amountIn) private returns (uint256) {
+        TransferHelper.safeApprove(_tokenIn, address(_router), _amountIn);
+
+        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
+            tokenIn: _tokenIn,
+            tokenOut: _tokenOut,
+            fee: _poolFee,
+            recipient: address(this),
+            deadline: block.timestamp,
+            amountIn: _amountIn,
+            amountOutMinimum: 0,
+            sqrtPriceLimitX96: 0
+        });
+        
+        return _router.exactInputSingle(params);
+    }
+
+    function swapOnUniswapV2(IUniswapV2Router02 _router, address _tokenIn, address _tokenOut, uint256 _amountIn) private returns (uint256) {
+        address[] memory path = new address[](2);
+        path[0] = _tokenIn;
+        path[1] = _tokenOut;
+
+        TransferHelper.safeApprove(_tokenIn, address(_router), _amountIn);
+        return _router.swapExactTokensForTokens(_amountIn, 0, path, address(this), block.timestamp)[0];
+    }
+    
+    // ============ Testing ============
+    // Make sure to send some of the _in token to the contract first.
     // function testV3(address _in, address _out) external {
     //     uint256 balance = IERC20(_in).balanceOf(address(this));
     //     TransferHelper.safeApprove(_in, address(uniswapV3Router), balance);
@@ -99,74 +168,4 @@ contract Arbitrage is FlashLoanReceiverBase {
 
     //     quickswapRouter.swapExactTokensForTokens(balance, 0, path, msg.sender, block.timestamp);
     // }
-
-    function executeOperation(
-        address[] calldata assets,
-        uint256[] calldata amounts,
-        uint256[] calldata premiums,
-        address initiator,
-        bytes calldata params
-    ) external returns (bool) {
-        require(msg.sender == address(LENDING_POOL), "Not a lending pool.");
-
-        FlashData memory decoded = abi.decode(params, (FlashData));
-        // ============ Buy ============
-        if (decoded.buy.index == 0) {
-            // Buy at uniswapv3
-            swapOnUniswapV3(uniswapV3Router, decoded.buy.token, decoded.sell.token, decoded.buy.fee);
-        } else if (decoded.buy.index == 1) {
-            // Buy at quickswap
-            swapOnUniswapV2(quickswapRouter, decoded.buy.token, decoded.sell.token);
-        }
-
-        // ============ Sell ============
-        if (decoded.sell.index == 0) {
-            // Sell at uniswapv3
-            swapOnUniswapV3(uniswapV3Router, decoded.sell.token, decoded.buy.token, decoded.sell.fee);
-        } else if (decoded.sell.index == 1) {
-            // Sell at quickswap
-            swapOnUniswapV2(quickswapRouter, decoded.sell.token, decoded.buy.token);
-        }
-
-        // ============ Payback ============
-        // At the end of your logic above, this contract owes
-        // the flashloaned amounts + premiums.
-        // Therefore ensure your contract has enough to repay
-        // these amounts.
-
-        // Approve the LendingPool contract allowance to *pull* the owed amount
-        uint256 amountOwed = amounts[0] + premiums[0];
-        TransferHelper.safeApprove(assets[0], address(LENDING_POOL), amountOwed);
-
-        return true;
-    }
-
-    function swapOnUniswapV3(ISwapRouter _router, address _tokenIn, address _tokenOut, uint24 _poolFee) private returns (uint256) {
-        uint256 balance = IERC20(_tokenIn).balanceOf(address(this));
-        TransferHelper.safeApprove(_tokenIn, address(_router), balance);
-
-        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
-            tokenIn: _tokenIn,
-            tokenOut: _tokenOut,
-            fee: _poolFee,
-            recipient: address(this),
-            deadline: block.timestamp,
-            amountIn: balance,
-            amountOutMinimum: 0,
-            sqrtPriceLimitX96: 0
-        });
-        
-        return _router.exactInputSingle(params);
-    }
-
-    function swapOnUniswapV2(IUniswapV2Router02 _router, address _tokenIn, address _tokenOut) private {
-        address[] memory path = new address[](2);
-        path[0] = _tokenIn;
-        path[1] = _tokenOut;
-
-        uint256 balance = IERC20(_tokenIn).balanceOf(address(this));
-        TransferHelper.safeApprove(_tokenIn, address(_router), balance);
-
-        _router.swapExactTokensForTokens(balance, 0, path, address(this), block.timestamp);
-    }
 }
