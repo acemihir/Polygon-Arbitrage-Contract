@@ -15,8 +15,8 @@ import "./interfaces/IUniswapV2Router02.sol";
 
 contract Arbitrage is FlashLoanReceiverBase {
     address public immutable minter;
-    ISwapRouter public immutable uniswapV3Router;
-    IUniswapV2Router02 public immutable quickswapRouter;
+    ISwapRouter public uniswapV3Router;
+    IUniswapV2Router02 public quickswapRouter;
 
     // Can buy at the following:
     // 0 = UniswapV3
@@ -41,6 +41,11 @@ contract Arbitrage is FlashLoanReceiverBase {
         quickswapRouter = IUniswapV2Router02(_quickswapRouter);
     }
 
+    modifier minterOnly {
+        require(msg.sender == minter, "Minter only");
+        _;
+    }
+
     function execute(FlashData memory _data, uint256 _amount) external {
         address[] memory assets = new address[](1);
         assets[0] = address(_data.buy.token);
@@ -62,9 +67,16 @@ contract Arbitrage is FlashLoanReceiverBase {
         );
     }
 
-    function cashOut(address _receiver, address _token) external {
-        require(msg.sender == minter, "Owner only");
+    function cashOut(address _receiver, address _token) external minterOnly {
         IERC20(_token).transfer(_receiver, IERC20(_token).balanceOf(address(this)));
+    }
+
+    function setUniswapV3Router(address _router) external minterOnly {
+        uniswapV3Router = ISwapRouter(_router);
+    }
+
+    function setQuickswapRouter(address _router) external minterOnly {
+        quickswapRouter = IUniswapV2Router02(_router);
     }
 
     // ============ Callback ============
