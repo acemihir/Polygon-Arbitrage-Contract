@@ -14,6 +14,7 @@ import "./libraries/TransferHelper.sol";
 import "./interfaces/IUniswapV2Router02.sol";
 
 contract Arbitrage is FlashLoanReceiverBase {
+    address public immutable minter;
     ISwapRouter public immutable uniswapV3Router;
     IUniswapV2Router02 public immutable quickswapRouter;
 
@@ -29,7 +30,6 @@ contract Arbitrage is FlashLoanReceiverBase {
     struct FlashData {
         SwapData buy;
         SwapData sell;
-        address receiver;
     }
 
     constructor(
@@ -37,6 +37,7 @@ contract Arbitrage is FlashLoanReceiverBase {
         address _uniswapV3Router,
         address _quickswapRouter
     ) FlashLoanReceiverBase(ILendingPoolAddressesProvider(_flashAddrProvider)) {
+        minter = msg.sender;
         uniswapV3Router = ISwapRouter(_uniswapV3Router);
         quickswapRouter = IUniswapV2Router02(_quickswapRouter);
     }
@@ -62,6 +63,11 @@ contract Arbitrage is FlashLoanReceiverBase {
         );
     }
 
+    function cashOut(address _receiver, address _token) external {
+        require(msg.sender == minter, "Owner only");
+        IERC20(_token).transfer(_receiver, IERC20(_token).balanceOf(address(this)));
+    }
+
     // ============ Callbacks ============
      // Make sure to send some of the _in token to the contract first.
     // function testV3(address _in, address _out) external {
@@ -82,7 +88,7 @@ contract Arbitrage is FlashLoanReceiverBase {
     //     uniswapV3Router.exactInputSingle(params);
     // }
 
-     // Make sure to send some of the _in token to the contract first.
+    // Make sure to send some of the _in token to the contract first.
     // function testV2(address _in, address _out) external {
     //     address[] memory path = new address[](2);
     //     path[0] = _in;
@@ -131,14 +137,6 @@ contract Arbitrage is FlashLoanReceiverBase {
         // Approve the LendingPool contract allowance to *pull* the owed amount
         uint256 amountOwed = amounts[0] + premiums[0];
         TransferHelper.safeApprove(assets[0], address(LENDING_POOL), amountOwed);
-
-        // ============ Profit Payout ============
-        // Calculate profit
-        uint256 balance = IERC20(assets[0]).balanceOf(address(this));
-        require(amountOwed <= balance, "No profit was made"); // Check for arithmic underflow
-
-        // Pay the profit to the receiver
-        IERC20(assets[0]).transfer(decoded.receiver, balance - amountOwed);
 
         return true;
     }
