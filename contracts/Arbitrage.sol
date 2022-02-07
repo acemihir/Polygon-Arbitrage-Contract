@@ -21,6 +21,7 @@ contract Arbitrage is FlashLoanReceiverBase {
     // Can buy at the following:
     // 0 = UniswapV3
     // 1 = Quickswap
+    // 2 = Firebird
     struct SwapData {
         uint8 index;
         address token;
@@ -147,36 +148,4 @@ contract Arbitrage is FlashLoanReceiverBase {
         require(IERC20(_tokenIn).approve(address(_router), _amountIn), "V2: Approve failed");
         return _router.swapExactTokensForTokens(_amountIn, 0, path, address(this), block.timestamp)[0];
     }
-    
-    // ============ Testing ============
-    // Make sure to send some of the _in token to the contract first.
-    // function testV3(address _in, address _out) external {
-    //     uint256 balance = IERC20(_in).balanceOf(address(this));
-    //     TransferHelper.safeApprove(_in, address(uniswapV3Router), balance);
-
-    //     ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
-    //         tokenIn: _in,
-    //         tokenOut: _out,
-    //         fee: 3000,
-    //         recipient: msg.sender,
-    //         deadline: block.timestamp,
-    //         amountIn: balance,
-    //         amountOutMinimum: 0,
-    //         sqrtPriceLimitX96: 0
-    //     });
-        
-    //     uniswapV3Router.exactInputSingle(params);
-    // }
-
-    // Make sure to send some of the _in token to the contract first.
-    // function testV2(address _in, address _out) external {
-    //     address[] memory path = new address[](2);
-    //     path[0] = _in;
-    //     path[1] = _out;
-
-    //     uint256 balance = IERC20(_in).balanceOf(address(this));
-    //     TransferHelper.safeApprove(_in, address(quickswapRouter), balance);
-
-    //     quickswapRouter.swapExactTokensForTokens(balance, 0, path, msg.sender, block.timestamp);
-    // }
 }
