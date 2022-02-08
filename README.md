@@ -11,5 +11,4 @@ Monero (XMR): 45f9A545w7TEXZLppX6bdQj8JSfG3RqBefMgfdisRaqKDiZMdbYtJHb7EzZibXPjc8
 npx hardhat compile
 npx hardhat node --network hardhat
 npx hardhat run --network localhost scripts/deploy.ts
-npx hardhat accounts --network localhost
 ```
