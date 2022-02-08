@@ -21,9 +21,9 @@ async function main() {
             isV3: false
         }
     }, ethers.utils.parseUnits('1000', 18), { gasLimit: "30000000" });
-}
+};
 
-main().catch((ex) => {
-    console.error(ex);
-    process.exitCode = 1;
+main().then(() => process.exit(0)).catch((error) => {
+    console.error(error);
+    process.exit(1);
 });
